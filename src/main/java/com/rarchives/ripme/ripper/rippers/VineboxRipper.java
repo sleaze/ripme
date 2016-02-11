@@ -16,8 +16,9 @@ import com.rarchives.ripme.utils.Http;
 
 public class VineboxRipper extends AlbumRipper {
 
-    private static final String DOMAIN = "vinebox.co",
-                                HOST   = "vinebox";
+    private static final String DOMAIN1 = "vinebox.co",
+                                DOMAIN2 = "finebox.co",
+                                HOST    = "finebox";
 
     public VineboxRipper(URL url) throws IOException {
         super(url);
@@ -25,12 +26,12 @@ public class VineboxRipper extends AlbumRipper {
 
     @Override
     public boolean canRip(URL url) {
-        return url.getHost().endsWith(DOMAIN);
+        return url.getHost().endsWith(DOMAIN1) || url.getHost().endsWith(DOMAIN2);
     }
 
     @Override
     public URL sanitizeURL(URL url) throws MalformedURLException {
-        return new URL("http://vinebox.co/u/" + getGID(url));
+        return new URL("http://finebox.co/u/" + getGID(url));
     }
 
     @Override
@@ -49,7 +50,15 @@ public class VineboxRipper extends AlbumRipper {
                 break;
             }
             for (Element element : doc.select("video")) {
-                addURLToDownload(new URL(element.attr("src")));
+                String srcUrl = element.attr("src");
+                if (srcUrl == null) {
+                    srcUrl = "";
+                }
+                if (element.attr("src") != null && element.attr("src").startsWith("/")) {
+                    srcUrl = "http://" + DOMAIN2 + srcUrl;
+                }
+                System.out.println("YOYOYO srcUrl=" + srcUrl + "\n");
+                addURLToDownload(new URL(srcUrl));
             }
             try {
                 Thread.sleep(1000);
@@ -68,10 +77,10 @@ public class VineboxRipper extends AlbumRipper {
 
     @Override
     public String getGID(URL url) throws MalformedURLException {
-        Pattern p = Pattern.compile("^https?://(www\\.)?vinebox\\.co/u/([a-zA-Z0-9]{1,}).*$");
+        Pattern p = Pattern.compile("^https?://(www\\.)?[vf]inebox\\.co/u/([a-zA-Z0-9]{1,}).*$");
         Matcher m = p.matcher(url.toExternalForm());
         if (!m.matches()) {
-            throw new MalformedURLException("Expected format: http://vinebox.co/u/USERNAME");
+            throw new MalformedURLException("Expected format: http://vinebox.co/u/USERNAME or http://finebox.co/u/USERNAME");
         }
         return m.group(m.groupCount());
     }

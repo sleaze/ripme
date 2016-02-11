@@ -65,10 +65,10 @@ public abstract class AbstractRipper
      *      If anything goes wrong.
      */
     public AbstractRipper(URL url) throws IOException {
+        this.url = sanitizeURL(url);
         if (!canRip(url)) {
             throw new MalformedURLException("Unable to rip url: " + url);
         }
-        this.url = sanitizeURL(url);
     }
 
     public void setup() throws IOException {
@@ -103,23 +103,9 @@ public abstract class AbstractRipper
         } catch (IOException e) {
             return;
         }
-        String saveAs = url.toExternalForm();
-        saveAs = saveAs.substring(saveAs.lastIndexOf('/')+1);
-        if (saveAs.indexOf('?') >= 0) { saveAs = saveAs.substring(0, saveAs.indexOf('?')); }
-        if (saveAs.indexOf('#') >= 0) { saveAs = saveAs.substring(0, saveAs.indexOf('#')); }
-        if (saveAs.indexOf('&') >= 0) { saveAs = saveAs.substring(0, saveAs.indexOf('&')); }
-        if (saveAs.indexOf(':') >= 0) { saveAs = saveAs.substring(0, saveAs.indexOf(':')); }
         File saveFileAs;
         try {
-            if (!subdirectory.equals("")) {
-                subdirectory = File.separator + subdirectory;
-            }
-            saveFileAs = new File(
-                    workingDir.getCanonicalPath()
-                    + subdirectory
-                    + File.separator
-                    + prefix
-                    + saveAs);
+            saveFileAs = getSaveFileAs(url, prefix, subdirectory);
         } catch (IOException e) {
             logger.error("[!] Error creating save file path for URL '" + url + "':", e);
             return;
@@ -130,6 +116,25 @@ public abstract class AbstractRipper
             saveFileAs.getParentFile().mkdirs();
         }
         addURLToDownload(url, saveFileAs, referrer, cookies);
+    }
+
+    public String getSaveAs(URL url) {
+        String saveAs = url.toExternalForm();
+        saveAs = saveAs.substring(saveAs.lastIndexOf('/')+1);
+        if (saveAs.indexOf('?') >= 0) { saveAs = saveAs.substring(0, saveAs.indexOf('?')); }
+        if (saveAs.indexOf('#') >= 0) { saveAs = saveAs.substring(0, saveAs.indexOf('#')); }
+        if (saveAs.indexOf('&') >= 0) { saveAs = saveAs.substring(0, saveAs.indexOf('&')); }
+        if (saveAs.indexOf(':') >= 0) { saveAs = saveAs.substring(0, saveAs.indexOf(':')); }
+        return saveAs;
+    }
+
+    public File getSaveFileAs(URL url, String prefix, String subdirectory) throws IOException {
+        String saveAs = getSaveAs(url);
+        if (!subdirectory.equals("")) {
+            subdirectory = File.separator + subdirectory;
+        }
+        File saveFileAs = new File(workingDir.getCanonicalPath() + subdirectory + File.separator + prefix + saveAs);
+        return saveFileAs;
     }
     
     /**

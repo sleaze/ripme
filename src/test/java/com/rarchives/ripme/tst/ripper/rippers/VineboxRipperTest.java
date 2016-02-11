@@ -13,11 +13,12 @@ public class VineboxRipperTest extends RippersTest {
         if (DOWNLOAD_CONTENT) {
             return;
         }
-        List<URL> contentURLs = new ArrayList<URL>();
-        contentURLs.add(new URL("http://vinebox.co/u/wi57hMjc2Ka"));
+        /*List<URL> contentURLs = new ArrayList<URL>();
+        contentURLs.add(new URL("http://finebox.co/u/wi57hMjc2Ka"));
         for (URL url : contentURLs) {
             try {
                 VineboxRipper ripper = new VineboxRipper(url);
+                //ripper.setup();
                 ripper.rip();
                 assert(ripper.getWorkingDir().listFiles().length > 1);
                 deleteDir(ripper.getWorkingDir());
@@ -25,7 +26,7 @@ public class VineboxRipperTest extends RippersTest {
                 e.printStackTrace();
                 fail("Error while ripping URL " + url + ": " + e.getMessage());
             }
-        }
+        }*/
     }
 
 }
