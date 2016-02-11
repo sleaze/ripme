@@ -47,6 +47,25 @@ public class Utils {
             }
             config = new PropertiesConfiguration(configPath);
             logger.info("Loaded " + config.getPath());
+            if (f.exists()){
+                // Config was loaded from file
+                if ( !config.containsKey("twitter.auth")
+                  || !config.containsKey("twitter.max_requests")
+                  || !config.containsKey("tumblr.auth")
+                  || !config.containsKey("error.skip404")
+                  || !config.containsKey("gw.api")
+                  || !config.containsKey("page.timeout")
+                  || !config.containsKey("download.max_size")
+                  ) {
+                    // Config is missing key fields
+                    // Need to reload the default config
+                    // See https://github.com/4pr0n/ripme/issues/158
+                    logger.warn("Config does not contain key fields, deleting old config");
+                    f.delete();
+                    config = new PropertiesConfiguration(configFile);
+                    logger.info("Loaded " + config.getPath());
+                }
+            }
         } catch (Exception e) {
             logger.error("[!] Failed to load properties file from " + configFile, e);
         }
@@ -100,6 +119,14 @@ public class Utils {
         config.clearProperty(key);
         config.addProperty(key, list);
     }
+    public static void setConfigList(String key, Enumeration<Object> enumeration) {
+        config.clearProperty(key);
+        List<Object> list = new ArrayList<Object>();
+        while (enumeration.hasMoreElements()) {
+            list.add(enumeration.nextElement());
+        }
+        config.addProperty(key, list);
+    }
 
     public static void saveConfig() {
         try {
@@ -125,7 +152,7 @@ public class Utils {
      *      saveAs in relation to the CWD
      */
     public static String removeCWD(File saveAs) {
-        String prettySaveAs = saveAs.toString(); 
+        String prettySaveAs = saveAs.toString();
         try {
             prettySaveAs = saveAs.getCanonicalPath();
             String cwd = new File(".").getCanonicalPath() + File.separator;
@@ -137,7 +164,7 @@ public class Utils {
         }
         return prettySaveAs;
     }
-    
+
     public static String stripURLParameter(String url, String parameter) {
         int paramIndex = url.indexOf("?" + parameter);
         boolean wasFirstParam = true;
@@ -145,7 +172,7 @@ public class Utils {
             wasFirstParam = false;
             paramIndex = url.indexOf("&" + parameter);
         }
-        
+
         if(paramIndex > 0) {
             int nextParam = url.indexOf("&", paramIndex+1);
             if(nextParam != -1) {
@@ -156,7 +183,7 @@ public class Utils {
                 url = url.substring(0, paramIndex);
             }
         }
-        
+
         return url;
     }
 
@@ -231,10 +258,12 @@ public class Utils {
                             classes.add(Class.forName(className));
                         } catch (ClassNotFoundException e) {
                             logger.error("ClassNotFoundException loading " + className);
+                            jarFile.close(); // Resource leak fix?
                             throw new RuntimeException("ClassNotFoundException loading " + className);
                         }
                     }
                 }
+                jarFile.close(); // Eclipse said not closing it would have a resource leak
             } catch (IOException e) {
                 logger.error("Error while loading jar file:", e);
                 throw new RuntimeException(pkgname + " (" + directory + ") does not appear to be a valid package", e);
@@ -242,7 +271,7 @@ public class Utils {
         }
         return classes;
     }
-    
+
     public static final int SHORTENED_PATH_LENGTH = 12;
     public static String shortenPath(String path) {
         return shortenPath(new File(path));
@@ -256,7 +285,7 @@ public class Utils {
                 + "..."
                 + path.substring(path.length() - SHORTENED_PATH_LENGTH);
     }
-    
+
     public static String filesystemSafe(String text) {
         text = text.replaceAll("[^a-zA-Z0-9.-]", "_")
                    .replaceAll("__", "_")
@@ -266,7 +295,7 @@ public class Utils {
         }
         return text;
     }
-    
+
     public static String bytesToHumanReadable(int bytes) {
         float fbytes = (float) bytes;
         String[] mags = new String[] {"", "k", "m", "g", "t"};
@@ -331,6 +360,9 @@ public class Utils {
             PropertyConfigurator.configure(stream);
         }
         logger.info("Loaded " + logFile);
+        try {
+            stream.close();
+        } catch (IOException e) { }
     }
 
     /**

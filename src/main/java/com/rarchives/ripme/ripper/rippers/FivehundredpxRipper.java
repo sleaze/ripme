@@ -1,5 +1,6 @@
 package com.rarchives.ripme.ripper.rippers;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
@@ -11,6 +12,8 @@ import java.util.regex.Pattern;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.jsoup.nodes.Document;
+import org.jsoup.select.Elements;
 
 import com.rarchives.ripme.ripper.AbstractJSONRipper;
 import com.rarchives.ripme.ui.RipStatusMessage.STATUS;
@@ -117,13 +120,15 @@ public class FivehundredpxRipper extends AbstractJSONRipper {
     @Override
     public JSONObject getFirstPage() throws IOException {
         URL apiURL = new URL(baseURL + "&consumer_key=" + CONSUMER_KEY);
+        logger.debug("apiURL: " + apiURL);
         JSONObject json = Http.url(apiURL).getJSON();
         if (baseURL.contains("/blogs?")) {
-            // List of stories
+            // List of stories to return
             JSONObject result = new JSONObject();
             result.put("photos", new JSONArray());
-            JSONArray jsonBlogs = json.getJSONArray("blog_posts");
+
             // Iterate over every story
+            JSONArray jsonBlogs = json.getJSONArray("blog_posts");
             for (int i = 0; i < jsonBlogs.length(); i++) {
                 if (i > 0) {
                     sleep(500);
@@ -153,6 +158,9 @@ public class FivehundredpxRipper extends AbstractJSONRipper {
 
     @Override
     public JSONObject getNextPage(JSONObject json) throws IOException {
+        if (isThisATest()) {
+            return null;
+        }
         // Check previous JSON to see if we hit the last page
         if (!json.has("current_page")
          || !json.has("total_pages")) {
@@ -177,20 +185,51 @@ public class FivehundredpxRipper extends AbstractJSONRipper {
         List<String> imageURLs = new ArrayList<String>();
         JSONArray photos = json.getJSONArray("photos");
         for (int i = 0; i < photos.length(); i++) {
+        	if (super.isStopped()) {
+        		break;
+        	}
             JSONObject photo = photos.getJSONObject(i);
-            String imageURL = photo.getString("image_url");
-            imageURL = imageURL.replaceAll("/4\\.", "/5.");
-            // See if there's larger images
-            for (String imageSize : new String[] { "2048" } ) {
-                String fsURL = imageURL.replaceAll("/5\\.", "/" + imageSize + ".");
-                sleep(10);
-                if (urlExists(fsURL)) {
-                    logger.info("Found larger image at " + fsURL);
-                    imageURL = fsURL;
-                    break;
-                }
+            String imageURL = null;
+            String rawUrl = "https://500px.com" + photo.getString("url");
+            Document doc;
+            Elements images = new Elements();
+            try {
+            	logger.debug("Loading " + rawUrl);
+            	super.retrievingSource(rawUrl);
+            	doc = Http.url(rawUrl).get();
+            	images = doc.select("div#preload img");
             }
-            imageURLs.add(imageURL);
+            catch (IOException e) {
+            	logger.error("Error fetching full-size image from " + rawUrl, e);
+            }
+            if (images.size() > 0) {
+            	imageURL = images.first().attr("src");
+            	logger.debug("Found full-size non-watermarked image: " + imageURL);
+            }
+            else {
+            	logger.debug("Falling back to image_url from API response");
+				imageURL = photo.getString("image_url");
+				imageURL = imageURL.replaceAll("/4\\.", "/5.");
+				// See if there's larger images
+				for (String imageSize : new String[] { "2048" } ) {
+					String fsURL = imageURL.replaceAll("/5\\.", "/" + imageSize + ".");
+					sleep(10);
+					if (urlExists(fsURL)) {
+						logger.info("Found larger image at " + fsURL);
+						imageURL = fsURL;
+						break;
+					}
+				}
+            }
+            if (imageURL == null) {
+            	logger.error("Failed to find image for photo " + photo.toString());
+            }
+            else {
+				imageURLs.add(imageURL);
+				if (isThisATest()) {
+					break;
+				}
+            }
         }
         return imageURLs;
     }
@@ -209,11 +248,17 @@ public class FivehundredpxRipper extends AbstractJSONRipper {
     }
 
     @Override
+    public boolean keepSortOrder() {
+        return false;
+    }
+
+    @Override
     public void downloadURL(URL url, int index) {
         String u = url.toExternalForm();
         String[] fields = u.split("/");
-        String prefix = getPrefix(index) + fields[fields.length - 2] + "-";
-        addURLToDownload(url, prefix);
+        String prefix = getPrefix(index) + fields[fields.length - 3];
+        File saveAs = new File(getWorkingDir() + File.separator + prefix + ".jpg");
+        addURLToDownload(url,  saveAs,  "", null);
     }
 
 }

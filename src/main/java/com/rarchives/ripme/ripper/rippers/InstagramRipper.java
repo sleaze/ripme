@@ -9,6 +9,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -38,7 +39,7 @@ public class InstagramRipper extends AbstractJSONRipper {
     public boolean canRip(URL url) {
         return (url.getHost().endsWith("instagram.com")
              || url.getHost().endsWith("statigr.am")
-             || url.getHost().endsWith("iconosquare.com"));
+             || url.getHost().endsWith("iconosquare.com/"));
     }
 
     @Override
@@ -94,7 +95,6 @@ public class InstagramRipper extends AbstractJSONRipper {
     }
     
     private String getUserID(URL url) throws IOException {
-        logger.info("Retrieving " + url);
         this.sendUpdate(STATUS.LOADING_RESOURCE, url.toExternalForm());
         Document doc = Http.url(url).get();
         for (Element element : doc.select("input[id=user_public]")) {
@@ -109,11 +109,19 @@ public class InstagramRipper extends AbstractJSONRipper {
         String baseURL = "http://iconosquare.com/controller_nl.php?action=getPhotoUserPublic&user_id="
                         + userID;
         logger.info("Loading " + baseURL);
-        return Http.url(baseURL).getJSON();
+        try {
+            JSONObject result = Http.url(baseURL).getJSON();
+            return result;
+        } catch (JSONException e) {
+            throw new IOException("Could not get instagram user via iconosquare", e);
+        }
     }
 
     @Override
     public JSONObject getNextPage(JSONObject json) throws IOException {
+        if (isThisATest()) {
+            return null;
+        }
         JSONObject pagination = json.getJSONObject("pagination");
         String nextMaxID = "";
         JSONArray datas = json.getJSONArray("data");
@@ -156,7 +164,12 @@ public class InstagramRipper extends AbstractJSONRipper {
             } else {
                 continue;
             }
+            imageURL = imageURL.replaceAll("scontent.cdninstagram.com/hphotos-", "igcdn-photos-d-a.akamaihd.net/hphotos-ak-");
+            imageURL = imageURL.replaceAll("s640x640/", "");
             imageURLs.add(imageURL);
+            if (isThisATest()) {
+                break;
+            }
         }
         return imageURLs;
     }

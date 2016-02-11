@@ -33,14 +33,25 @@ public abstract class AlbumRipper extends AbstractRipper {
         return false;
     }
 
-    public void addURLToDownload(URL url, File saveAs, String referrer, Map<String,String> cookies) {
+    @Override
+    public int getCount() {
+        return itemsCompleted.size() + itemsErrored.size();
+    }
+
+    public boolean addURLToDownload(URL url, File saveAs, String referrer, Map<String,String> cookies) {
+        // Only download one file if this is a test.
+        if (super.isThisATest() &&
+                (itemsPending.size() > 0 || itemsCompleted.size() > 0 || itemsErrored.size() > 0)) {
+            stop();
+            return false;
+        }
         if (!allowDuplicates()
                 && ( itemsPending.containsKey(url)
                   || itemsCompleted.containsKey(url)
                   || itemsErrored.containsKey(url) )) {
             // Item is already downloaded/downloading, skip it.
             logger.info("[!] Skipping " + url + " -- already attempted: " + Utils.removeCWD(saveAs));
-            return;
+            return false;
         }
         if (Utils.getConfigBoolean("urls_only.save", false)) {
             // Output URL to file
@@ -68,11 +79,12 @@ public abstract class AlbumRipper extends AbstractRipper {
             }
             threadPool.addThread(dft);
         }
+        return true;
     }
 
     @Override
-    public void addURLToDownload(URL url, File saveAs) {
-        addURLToDownload(url, saveAs, null, null);
+    public boolean addURLToDownload(URL url, File saveAs) {
+        return addURLToDownload(url, saveAs, null, null);
     }
 
     /**
@@ -80,10 +92,12 @@ public abstract class AlbumRipper extends AbstractRipper {
      * Uses filename from URL to decide filename.
      * @param url
      *      URL to download
+     * @return 
+     *      True on success
      */
-    public void addURLToDownload(URL url) {
+    public boolean addURLToDownload(URL url) {
         // Use empty prefix and empty subdirectory
-        addURLToDownload(url, "", "");
+        return addURLToDownload(url, "", "");
     }
 
     @Override
@@ -117,14 +131,14 @@ public abstract class AlbumRipper extends AbstractRipper {
     }
 
     @Override
-    public void downloadProblem(URL url, String message) {
+    public void downloadExists(URL url, File file) {
         if (observer == null) {
             return;
         }
-        
+
         itemsPending.remove(url);
-        itemsErrored.put(url, message);
-        observer.update(this, new RipStatusMessage(STATUS.DOWNLOAD_WARN, url + " : " + message));
+        itemsCompleted.put(url, file);
+        observer.update(this, new RipStatusMessage(STATUS.DOWNLOAD_WARN, url + " already saved as " + file.getAbsolutePath()));
             
         checkIfComplete();
     }
@@ -146,6 +160,8 @@ public abstract class AlbumRipper extends AbstractRipper {
      * Sets directory to save all ripped files to.
      * @param url
      *      URL to define how the working directory should be saved.
+     * @throws 
+     *      IOException      
      */
     @Override
     public void setWorkingDir(URL url) throws IOException {
@@ -159,6 +175,7 @@ public abstract class AlbumRipper extends AbstractRipper {
         } else {
             title = super.getAlbumTitle(this.url);
         }
+        logger.debug("Using album title '" + title + "'");
         title = Utils.filesystemSafe(title);
         path += title + File.separator;
         this.workingDir = new File(path);
@@ -193,5 +210,4 @@ public abstract class AlbumRipper extends AbstractRipper {
           .append(", Errored: "  ).append(itemsErrored.size());
         return sb.toString();
     }
-
 }
